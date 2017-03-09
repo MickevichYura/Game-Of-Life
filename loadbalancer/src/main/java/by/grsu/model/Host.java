@@ -2,12 +2,12 @@ package by.grsu.model;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.Collection;
 
 
 @Entity
 @Table(name = "hosts")
-public class Host implements Serializable{
-
+public class Host implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "host_id")
@@ -16,20 +16,31 @@ public class Host implements Serializable{
     @Column(name = "ip")
     private String ip;
 
-    protected Host(){
+    @OneToMany(mappedBy = "hostByHostId")
+    private Collection<Task> tasksByHostId;
 
+
+    protected Host() {
     }
 
     public Host(String ip) {
         this.ip = ip;
     }
 
+    public Collection<Task> getTasksByHostId() {
+        return tasksByHostId;
+    }
+
+
     public long getHostId() {
         return hostId;
     }
 
-    public String getIp() {
+    public void setHostId(long hostId) {
+        this.hostId = hostId;
+    }
 
+    public String getIp() {
         return ip;
     }
 

@@ -71,7 +71,9 @@ public class RestApplicationTests {
 
     @Test
     public void pingHostTest() throws Exception {
-        mockMvc.perform(get("/ping").param("hostId", "0"))
+        mockMvc.perform(post("/ping")
+                .content("1")
+                .contentType(contentType))
                 .andExpect(jsonPath("$.message", is("is free")))
                 .andExpect(jsonPath("$.result", is(true)));
     }

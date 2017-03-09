@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+</head>
+<body>
+
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="#">Game Of Life</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    <h3>Dashboard</h3>
+    <div class="col-sm-12">
+        <div class="col-sm-8">
+            <canvas id="background"></canvas>
+        </div>
+
+        <div class="col-sm-4">
+            <ul class="pagination">
+            </ul>
+        </div>
+    </div>
+    <div class="col-sm-9">
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="steps">Max Steps:</label>
+                <input type="number" value="10" min="1" max="100" class="form-control" id="steps">
+            </div>
+        </div>
+
+        <div class="col-sm-3">
+            <div class="form-group">
+                <label for="parts">Part Size:</label>
+                <input type="number" value="10" min="1" max="25" class="form-control" id="parts">
+            </div>
+        </div>
+
+        <div class="col-sm-3" style="padding-top: 24px">
+            <button type="button" id="pass" class="btn btn-primary">Submit</button>
+            <button type="button" id="clear" class="btn btn-primary">Clear</button>
+        </div>
+    </div>
+
+</div>
+<script>
+    var pixelSize = 5;
+    var numCells = 100;
+    var resultStepMatrix = [];
+    var pagination = $('.pagination');
+    var canvas = document.getElementById('background');
+    canvas.width = pixelSize * (numCells);
+    canvas.height = pixelSize * (numCells);
+    var context = canvas.getContext('2d');
+    var arr = buildArr();
+
+    function buildArr() {
+        var arr = [];
+        for (var i = 0; i < numCells; i++) {
+            var innerArr = [];
+            for (var j = 0; j < numCells; j++) {
+                innerArr.push(0);
+            }
+            arr.push(innerArr);
+        }
+        return arr;
+    }
+
+    function display(arr) {
+        for (var x = 0; x < arr.length; x++) {
+            for (var y = 0; y < arr[x].length; y++) {
+                drawCell(x, y, arr[x][y]);
+            }
+        }
+    }
+
+    function clearArr() {
+        arr = buildArr();
+        display(arr);
+        drawPagination();
+    }
+
+    function drawCell(x, y, alive) {
+        context.beginPath();
+        context.rect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+        context.fillStyle = alive ? 'black' : '#EEE';
+        context.fill();
+    }
+
+    function randomlyPopulate(arr) {
+        for (var x = 0; x < arr.length; x++) {
+            for (y = 0; y < arr[x].length; y++) {
+                if (Math.log(Math.random() * 10) < -0.6) {
+                    arr[x][y] = 1;
+                }
+            }
+        }
+    }
+
+    $('canvas').click(function (e) {
+        var canvasOffset = $('canvas').offset();
+        var axisX = Math.round((e.clientX - canvasOffset.left) / pixelSize);
+        var axisY = Math.round((e.clientY - canvasOffset.top + $(window).scrollTop()) / pixelSize);
+        var cell = arr[axisX][axisY];
+        arr[axisX][axisY] = cell == 0 ? 1 : 0;
+        drawCell(axisX, axisY, arr[axisX][axisY]);
+    });
+
+    $('#pass').click(function () {
+        $('input').prop('disabled', true);
+        resultStepMatrix.push(arr);
+        $.ajax({
+            url: '/task',
+            type: 'POST',
+            data: {
+                'taskId': 1,
+                'partId': 0,
+                'partSize': $('#parts').val(),
+                'maxSteps': $('#steps').val(),
+                'lifeData': JSON.stringify(arr)
+            },
+            success: submitSuccess
+        });
+    });
+
+    $('#clear').click(function () {
+        clearArr(arr);
+    });
+
+    function updatePaginationWithData(data) {
+        if (data.result) {
+            partId++;
+            var steps = JSON.parse(data.message);
+            for (var i = 0; i < steps.length; i++) {
+                resultStepMatrix.push(JSON.parse(steps[i]));
+            }
+            pagination.show();
+            drawPagination();
+        }
+        executeAsync(function () {
+            startCheck();
+        });
+    }
+
+    function submitSuccess(data) {
+        if (data.message == "ok") {
+            executeAsync(function () {
+                startCheck();
+            });
+        }
+    }
+
+
+    function executeAsync(func) {
+        setTimeout(func, 0);
+    }
+    var partId = 0;
+    function startCheck() {
+        if (resultStepMatrix.length <= parseInt($('#steps').val())) {
+            setTimeout(function () {
+                $.ajax({
+                    url: '/task?taskId=' + 1 + '&partId=' + partId,
+                    type: 'GET',
+                    success: updatePaginationWithData,
+                    fail: startCheck
+                });
+            }, 1000);
+        }
+    }
+
+    function drawPagination() {
+        pagination.html('');
+        $.each(resultStepMatrix, function (j, stepMatrix) {
+            var $li = $('<li>');
+            var $a = $('<a>', {
+                "href": "#",
+                "html": j
+            });
+            $a.on("click", function () {
+                display(stepMatrix);
+            });
+            $li.append($a);
+            pagination.append($li);
+        });
+    }
+
+    $('input').on('change', function () {
+        debugger;
+        if (parseInt(this.value) < parseInt(this.min) || !this.value)
+            this.value = this.min;
+        else if (parseInt(this.value) > parseInt(this.max))
+            this.value = this.max;
+    });
+    pagination.hide();
+    randomlyPopulate(arr);
+    display(arr);
+
+</script>
+</body>
+</html>
